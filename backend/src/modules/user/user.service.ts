@@ -5,10 +5,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { plainToInstance } from 'class-transformer';
 import { User } from './entities/user.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateSweepSettingsDto } from './dto/update-sweep-settings.dto';
 import { SweepSettingsDto } from './dto/sweep-settings.dto';
+import { UserProfileResponseDto } from './dto/user-profile-response.dto';
 
 @Injectable()
 export class UserService {
@@ -68,6 +70,53 @@ export class UserService {
 
     // Return with only selected fields to match old behavior
     return this.findById(savedUser.id);
+  }
+
+  /**
+   * Hydrate a full user profile for the frontend dashboard.
+   *
+   * Fetches: id, email, name, bio, avatarUrl, publicKey (wallet),
+   *          role, kycStatus, createdAt.
+   * Computes: daysActive = whole days since createdAt.
+   * Excludes: password hash, kycRejectionReason, sweepThreshold,
+   *           defaultSavingsProductId, and any other internal column.
+   *
+   * The returned DTO is mapped through class-transformer so that
+   * `@Expose`/`@Exclude` decorators on UserProfileResponseDto are
+   * respected when ClassSerializerInterceptor serialises the HTTP response.
+   */
+  async getProfile(userId: string): Promise<UserProfileResponseDto> {
+    const raw = await this.userRepository.findOne({
+      where: { id: userId },
+      select: [
+        'id',
+        'email',
+        'name',
+        'bio',
+        'avatarUrl',
+        'publicKey',   // exposed on the wire as `walletAddress`
+        'role',
+        'kycStatus',
+        'createdAt',
+      ],
+    });
+
+    if (!raw) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Compute daysActive: number of full calendar days since account creation
+    const msPerDay = 86_400_000;
+    const daysActive = Math.floor(
+      (Date.now() - new Date(raw.createdAt).getTime()) / msPerDay,
+    );
+
+    // Map onto the DTO; plainToInstance applies @Expose/@Exclude decorators
+    return plainToInstance(
+      UserProfileResponseDto,
+      { ...raw, daysActive },
+      { excludeExtraneousValues: true }, // strips any property not decorated @Expose()
+    );
   }
 
   /**
