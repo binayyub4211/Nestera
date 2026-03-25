@@ -4,6 +4,7 @@ import { AnalyticsService } from './analytics.service';
 import { User } from '../user/entities/user.entity';
 import { ProcessedStellarEvent } from '../blockchain/entities/processed-event.entity';
 import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
+import { StellarService } from '../blockchain/stellar.service';
 import { PortfolioTimeframe } from './dto/portfolio-timeline-query.dto';
 
 describe('AnalyticsService', () => {
@@ -11,6 +12,7 @@ describe('AnalyticsService', () => {
   let userRepository: { findOne: jest.Mock };
   let eventRepository: { find: jest.Mock };
   let blockchainSavingsService: { getUserSavingsBalance: jest.Mock };
+  let stellarService: { getHorizonServer: jest.Mock };
 
   beforeEach(async () => {
     userRepository = {
@@ -23,6 +25,10 @@ describe('AnalyticsService', () => {
 
     blockchainSavingsService = {
       getUserSavingsBalance: jest.fn(),
+    };
+
+    stellarService = {
+      getHorizonServer: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -39,6 +45,10 @@ describe('AnalyticsService', () => {
         {
           provide: BlockchainSavingsService,
           useValue: blockchainSavingsService,
+        },
+        {
+          provide: StellarService,
+          useValue: stellarService,
         },
       ],
     }).compile();
