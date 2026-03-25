@@ -39,6 +39,9 @@ export class SavingsProduct {
   @Column('int', { nullable: true })
   tenureMonths: number | null;
 
+  @Column({ type: 'varchar', length: 56, nullable: true })
+  contractId: string | null;
+
   @Column({ default: true })
   isActive: boolean;
 

@@ -24,6 +24,40 @@ export class SavingsService {
   constructor(private readonly stellarService: StellarService) {}
 
   /**
+   * Fetch total assets from a Soroban vault contract
+   * @param contractId The Soroban contract ID
+   * @returns Total assets in stroops
+   */
+  async getVaultTotalAssets(contractId: string): Promise<number> {
+    try {
+      const totalAssets = await this.stellarService.invokeContractRead(
+        contractId,
+        'total_assets',
+      );
+
+      // Convert to number if needed
+      if (typeof totalAssets === 'number') {
+        return totalAssets;
+      }
+
+      if (typeof totalAssets === 'string') {
+        return parseInt(totalAssets, 10);
+      }
+
+      this.logger.warn(
+        `Unexpected type for total_assets from contract ${contractId}: ${typeof totalAssets}`,
+      );
+      return 0;
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch total_assets from contract ${contractId}: ${(error as Error).message}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Fetch total savings for a user from the Soroban contract
    * @param publicKey The user's Stellar public key
    * @returns Object containing flexible, locked, and total savings balances
