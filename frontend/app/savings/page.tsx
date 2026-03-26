@@ -85,7 +85,7 @@ export default function GoalBasedSavingsPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-            className="rounded-2xl border border-white/5 bg-[#0f2c2c] p-6 shadow-[0_10px_24px_rgba(2,12,12,0.35)]"
+              className="rounded-2xl border border-white/5 bg-[#0f2c2c] p-6 shadow-[0_10px_24px_rgba(2,12,12,0.35)]"
             >
               <div className={stat.color}>
                 <stat.icon size={20} strokeWidth={2} />
