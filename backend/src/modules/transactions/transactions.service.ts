@@ -84,6 +84,9 @@ export class TransactionsService {
   ): TransactionResponseDto {
     const createdAt = new Date(transaction.createdAt);
 
+    // Extract asset ID from metadata or use default USDC
+    const assetId = this.extractAssetId(transaction);
+
     return {
       id: transaction.id,
       userId: transaction.userId,
@@ -106,6 +109,26 @@ export class TransactionsService {
         minute: '2-digit',
         second: '2-digit',
       }),
-    };
+      // Add assetId for interceptor formatting (will be enriched by interceptor)
+      assetId,
+    } as TransactionResponseDto;
+  }
+
+  /**
+   * Extract asset ID from transaction metadata or return default
+   */
+  private extractAssetId(transaction: LedgerTransaction): string {
+    // Check metadata for asset information
+    if (transaction.metadata?.assetId) {
+      return transaction.metadata.assetId as string;
+    }
+
+    if (transaction.metadata?.contractId) {
+      return transaction.metadata.contractId as string;
+    }
+
+    // Check if poolId corresponds to a known asset
+    // For now, default to USDC as it's the primary asset
+    return 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA';
   }
 }
