@@ -7,9 +7,7 @@ import {
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
-import { Repository } from 'typeorm';
 import { SavingsProduct, SavingsProductType, RiskLevel } from './entities/savings-product.entity';
 import {
   UserSubscription,
@@ -33,6 +31,9 @@ import { User } from '../user/entities/user.entity';
 import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
 import { PredictiveEvaluatorService } from './services/predictive-evaluator.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 export type SavingsGoalProgress = GoalProgressDto;
 
@@ -42,6 +43,7 @@ export interface UserSubscriptionWithLiveBalance extends UserSubscription {
   liveBalanceStroops: number;
   balanceSource: 'rpc' | 'cache';
   vaultContractId: string | null;
+  estimatedYieldPerSecond: number;
 }
 
 const STROOPS_PER_XLM = 10_000_000;
@@ -68,7 +70,7 @@ export class SavingsService {
     private readonly predictiveEvaluatorService: PredictiveEvaluatorService,
     private readonly configService: ConfigService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-    private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   async createProduct(dto: CreateProductDto): Promise<SavingsProduct> {
@@ -106,6 +108,41 @@ export class SavingsService {
     Object.assign(product, dto);
     const updatedProduct = await this.productRepository.save(product);
     await this.invalidatePoolsCache();
+
+    // Emit waitlist availability event when product becomes available or capacity opens
+    try {
+      const activeCount = await this.subscriptionRepository.count({
+        where: {
+          productId: updatedProduct.id,
+          status: SubscriptionStatus.ACTIVE,
+        },
+      });
+
+      const oldCapacity = (product as any).__oldCapacity ?? null;
+      const oldIsActive = (product as any).__oldIsActive ?? null;
+
+      // If capacity is set and there's room, notify waitlist
+      if (
+        typeof updatedProduct.capacity === 'number' &&
+        updatedProduct.capacity > activeCount
+      ) {
+        const spots = Math.max(1, updatedProduct.capacity - activeCount);
+        this.eventEmitter?.emit('waitlist.product.available', {
+          productId: updatedProduct.id,
+          spots,
+        });
+      }
+
+      // If product was previously inactive and now active, notify waitlist (launch)
+      if (updatedProduct.isActive && !product.isActive) {
+        this.eventEmitter?.emit('waitlist.product.available', {
+          productId: updatedProduct.id,
+          spots: Math.max(1, (updatedProduct.capacity ?? 1) - activeCount),
+        });
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to emit waitlist event for product ${id}: ${e}`);
+    }
     return updatedProduct;
   }
 
@@ -224,7 +261,10 @@ export class SavingsService {
           })()
         : null,
     });
-    return await this.subscriptionRepository.save(subscription);
+    const savedSubscription =
+      await this.subscriptionRepository.save(subscription);
+
+    return savedSubscription;
   }
 
   async findMySubscriptions(
@@ -566,7 +606,7 @@ export class SavingsService {
       await this.withdrawalRepository.save(withdrawal);
 
       // Emit event for notification
-      this.eventEmitter.emit('withdrawal.completed', {
+      this.eventEmitter?.emit('withdrawal.completed', {
         userId: withdrawal.userId,
         withdrawalId: withdrawal.id,
         amount: withdrawal.amount,
@@ -640,6 +680,10 @@ export class SavingsService {
     balanceSource: 'rpc' | 'cache',
     vaultContractId: string | null,
   ): UserSubscriptionWithLiveBalance {
+    const annualRate = Number(subscription.product?.interestRate ?? 0) / 100;
+    const estimatedYieldPerSecond = parseFloat(
+      ((liveBalance * annualRate) / (365 * 24 * 3600)).toFixed(10),
+    );
     return {
       ...subscription,
       indexedAmount: Number(subscription.amount),
@@ -647,6 +691,7 @@ export class SavingsService {
       liveBalanceStroops,
       balanceSource,
       vaultContractId,
+      estimatedYieldPerSecond,
     };
   }
 
