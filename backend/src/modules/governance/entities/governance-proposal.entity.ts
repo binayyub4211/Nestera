@@ -22,6 +22,34 @@ export enum ProposalCategory {
   COMMUNITY = 'Community',
 }
 
+export enum ProposalType {
+  RATE_CHANGE = 'RATE_CHANGE',
+  PAUSE = 'PAUSE',
+  UNPAUSE = 'UNPAUSE',
+  TREASURY_ALLOCATION = 'TREASURY_ALLOCATION',
+}
+
+export enum ProposalAttachmentType {
+  DOCUMENT = 'DOCUMENT',
+  LINK = 'LINK',
+}
+
+export interface ProposalAttachment {
+  name?: string;
+  url: string;
+  type: ProposalAttachmentType;
+}
+
+export interface ProposalActionPayload {
+  target?: string;
+  newValue?: number;
+  duration?: number;
+  recipient?: string;
+  amount?: number;
+  asset?: string;
+  reason?: string;
+}
+
 @Entity('governance_proposals')
 export class GovernanceProposal {
   @PrimaryGeneratedColumn('uuid')
@@ -53,6 +81,27 @@ export class GovernanceProposal {
 
   @Column({ nullable: true })
   proposer: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  createdByUserId: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  type: ProposalType | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  action: ProposalActionPayload | null;
+
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  attachments: ProposalAttachment[];
+
+  @Column({ type: 'decimal', precision: 20, scale: 8, default: 0 })
+  requiredQuorum: string;
+
+  @Column({ type: 'int', default: 5000 })
+  quorumBps: number;
+
+  @Column({ type: 'decimal', precision: 20, scale: 8, default: 0 })
+  proposalThreshold: string;
 
   @Column({ type: 'bigint', nullable: true })
   startBlock: number;

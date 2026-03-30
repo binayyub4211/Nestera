@@ -1,62 +1,114 @@
+import { Type } from 'class-transformer';
 import {
-  IsString,
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
   IsInt,
+  IsObject,
   IsOptional,
+  IsString,
+  IsUrl,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { ProposalCategory } from '../entities/governance-proposal.entity';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ProposalAttachmentType,
+  ProposalType,
+} from '../entities/governance-proposal.entity';
 
-export class CreateProposalDto {
-  @ApiProperty({ description: 'On-chain proposal ID', example: 1 })
-  @IsInt()
-  onChainId: number;
+export class ProposalAttachmentDto {
+  @ApiPropertyOptional({
+    description: 'Display name for the supporting document or link',
+    example: 'Treasury model spreadsheet',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
 
   @ApiProperty({
-    description: 'Proposal title',
-    example: 'Increase Treasury Allocation',
+    description: 'Public URL for the supporting document or external reference',
+    example: 'https://example.com/governance/treasury-model.pdf',
+  })
+  @IsUrl({
+    require_protocol: true,
+  })
+  url: string;
+
+  @ApiProperty({
+    enum: ProposalAttachmentType,
+    example: ProposalAttachmentType.DOCUMENT,
+  })
+  @IsEnum(ProposalAttachmentType)
+  type: ProposalAttachmentType;
+}
+
+export class CreateProposalDto {
+  @ApiPropertyOptional({
+    description:
+      'Optional human-readable title. Derived from description if omitted.',
+    example: 'Increase Flexi Savings Rate',
     maxLength: 500,
   })
+  @IsOptional()
   @IsString()
   @MaxLength(500)
-  title: string;
+  title?: string;
 
   @ApiProperty({
     description: 'Detailed proposal description',
-    example: 'This proposal aims to...',
+    example:
+      'Increase the flexi savings rate from 8% to 10% to improve user retention.',
   })
   @IsString()
+  @MaxLength(5000)
   description: string;
 
-  @ApiProperty({ enum: ProposalCategory, example: ProposalCategory.TREASURY })
-  @IsEnum(ProposalCategory)
-  category: ProposalCategory;
+  @ApiProperty({
+    enum: ProposalType,
+    description:
+      'Structured proposal type used for validation and categorization',
+    example: ProposalType.RATE_CHANGE,
+  })
+  @IsEnum(ProposalType)
+  type: ProposalType;
 
   @ApiProperty({
-    description: 'Proposer wallet address',
-    example: '0x1234...',
-    required: false,
+    description: 'Structured action payload for the proposal',
+    example: { target: 'flexiRate', newValue: 10 },
   })
-  @IsOptional()
-  @IsString()
-  proposer?: string;
+  @IsObject()
+  action: Record<string, unknown>;
 
-  @ApiProperty({
-    description: 'Start block number',
-    example: 1000000,
-    required: false,
+  @ApiPropertyOptional({
+    description:
+      'Optional voting start ledger. Defaults to the current ledger plus a short review window.',
+    example: 123456,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   startBlock?: number;
 
-  @ApiProperty({
-    description: 'End block number',
-    example: 1100000,
-    required: false,
+  @ApiPropertyOptional({
+    description:
+      'Optional voting end ledger. Defaults to startBlock plus the configured voting period.',
+    example: 140736,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   endBlock?: number;
+
+  @ApiPropertyOptional({
+    type: [ProposalAttachmentDto],
+    description: 'Supporting documents or reference links',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ProposalAttachmentDto)
+  attachments?: ProposalAttachmentDto[];
 }
