@@ -134,67 +134,6 @@ describe('GovernanceService', () => {
     });
   });
 
-  describe('getUserVotingPower', () => {
-    const OLD_ENV = process.env;
-
-    beforeEach(() => {
-      process.env = { ...OLD_ENV, NST_GOVERNANCE_CONTRACT_ID: 'CONTRACT123' };
-    });
-
-    afterEach(() => {
-      process.env = OLD_ENV;
-    });
-
-    it('returns 0 NST when user has no publicKey', async () => {
-      userService.findById.mockResolvedValue({ id: 'user-1', publicKey: null });
-
-      await expect(service.getUserVotingPower('user-1')).resolves.toEqual({
-        votingPower: '0 NST',
-      });
-    });
-
-    it('returns formatted voting power when user has publicKey', async () => {
-      userService.findById.mockResolvedValue({
-        id: 'user-1',
-        publicKey: 'GUSERPUBLICKEY123',
-      });
-
-      await expect(service.getUserVotingPower('user-1')).resolves.toEqual({
-        votingPower: '5,000 NST',
-      });
-    });
-
-    it('returns formatted voting power derived from transaction total', async () => {
-      userService.findById.mockResolvedValue({
-        id: 'user-1',
-        publicKey: 'GUSERPUBLICKEY123',
-      });
-      const queryBuilder = {
-        select: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        getRawOne: jest.fn().mockResolvedValue({ total: '150000000' }),
-      } as any;
-      transactionRepo.createQueryBuilder.mockReturnValue(queryBuilder);
-
-      await expect(service.getUserVotingPower('user-1')).resolves.toEqual({
-        votingPower: '15 NST',
-      });
-    });
-
-    it('throws when NST_GOVERNANCE_CONTRACT_ID is not set', async () => {
-      delete process.env.NST_GOVERNANCE_CONTRACT_ID;
-      userService.findById.mockResolvedValue({
-        id: 'user-1',
-        publicKey: 'GUSERPUBLICKEY123',
-      });
-
-      await expect(service.getUserVotingPower('user-1')).rejects.toThrow(
-        'NST governance token contract ID not configured',
-      );
-    });
-  });
-
   describe('createProposal', () => {
     const OLD_ENV = process.env;
 

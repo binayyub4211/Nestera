@@ -7,8 +7,11 @@ import { PredictiveEvaluatorService } from './services/predictive-evaluator.serv
 import { SavingsProduct } from './entities/savings-product.entity';
 import { UserSubscription } from './entities/user-subscription.entity';
 import { SavingsGoal, SavingsGoalStatus } from './entities/savings-goal.entity';
-import { User } from '../user/entities/user.entity';
 import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
+import { User } from '../user/entities/user.entity';
+import { SavingsProductVersionAudit } from './entities/savings-product-version-audit.entity';
+import { ProductApySnapshot } from './entities/product-apy-snapshot.entity';
+import { WaitlistService } from './waitlist.service';
 import { WithdrawalRequest } from './entities/withdrawal-request.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 
@@ -78,6 +81,14 @@ describe('SavingsService', () => {
           useValue: userRepository,
         },
         {
+          provide: getRepositoryToken(ProductApySnapshot),
+          useValue: { create: jest.fn(), save: jest.fn(), findOne: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(SavingsProductVersionAudit),
+          useValue: { create: jest.fn(), save: jest.fn(), findOne: jest.fn() },
+        },
+        {
           provide: getRepositoryToken(WithdrawalRequest),
           useValue: { create: jest.fn(), save: jest.fn(), findOne: jest.fn() },
         },
@@ -97,6 +108,14 @@ describe('SavingsService', () => {
             calculateProjectionGap: jest.fn(() => 0),
             calculateDaysRemaining: jest.fn(() => 365),
             calculateRequiredMonthlyContribution: jest.fn(() => 0),
+          },
+        },
+        {
+          provide: WaitlistService,
+          useValue: {
+            addToWaitlist: jest.fn(),
+            removeFromWaitlist: jest.fn(),
+            getWaitlistPosition: jest.fn(),
           },
         },
         {

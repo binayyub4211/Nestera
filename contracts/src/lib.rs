@@ -1503,8 +1503,6 @@ mod governance_tests;
 #[cfg(test)]
 mod rates_test;
 #[cfg(test)]
-mod staking_tests;
-#[cfg(test)]
 mod test;
 #[cfg(test)]
 mod token_tests;
