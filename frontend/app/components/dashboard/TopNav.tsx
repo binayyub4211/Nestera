@@ -2,13 +2,28 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Bell, HelpCircle, LogOut, Wallet } from "lucide-react";
+import { Search, Bell, HelpCircle, LogOut, Wallet, Copy, ExternalLink, Check } from "lucide-react";
 import { useWallet } from "../../context/WalletContext";
+import NetworkIndicator from "./NetworkIndicator";
 
 const TopNav: React.FC = () => {
   const { address, network, isConnected, disconnect } = useWallet();
   const router = useRouter();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = () => {
+    if (address) {
+      navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const getExplorerLink = (addr: string, net: string | null) => {
+    const networkParam = net?.toLowerCase() === "public" ? "public" : "testnet";
+    return `https://stellar.expert/explorer/${networkParam}/account/${addr}`;
+  };
 
   const shortAddress = address
     ? `${address.slice(0, 4)}...${address.slice(-4)}`
@@ -57,19 +72,47 @@ const TopNav: React.FC = () => {
           ))}
 
           {/* Wallet info + disconnect */}
-          {isConnected && shortAddress ? (
+          {isConnected && address && shortAddress ? (
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex flex-col items-end">
-                <div className="flex items-center gap-1.5">
-                  <Wallet size={12} className="text-[#00c9c8]" />
+              <div className="flex items-center bg-[#0e2330] border border-white/8 rounded-xl h-[38px] px-3 gap-3">
+                <div 
+                  className="flex items-center gap-1.5 cursor-help" 
+                  title={address}
+                >
+                  <Wallet size={14} className="text-[#00c9c8]" />
                   <span className="text-[#00c9c8] text-xs font-semibold font-mono">
                     {shortAddress}
                   </span>
                 </div>
-                {network && (
-                  <span className="text-[10px] text-slate-400">{network}</span>
-                )}
+                
+                <div className="flex items-center gap-1.5 border-l border-white/10 pl-2">
+                  <button
+                    onClick={copyToClipboard}
+                    className="text-slate-400 hover:text-[#00c9c8] transition-colors cursor-pointer p-1"
+                    title="Copy full address"
+                    aria-label="Copy wallet address"
+                  >
+                    {copied ? <Check size={13} /> : <Copy size={13} />}
+                  </button>
+                  <a
+                    href={getExplorerLink(address, network)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-400 hover:text-[#00c9c8] transition-colors p-1"
+                    title="View on Stellar Expert"
+                    aria-label="View on Stellar Expert"
+                  >
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
               </div>
+
+              {/* Network Indicator */}
+              <NetworkIndicator 
+                network={network} 
+                isConnected={isConnected} 
+              />
+
               <button
                 aria-label="Disconnect wallet"
                 onClick={() => setShowConfirm(true)}
