@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { AuthRateLimitService } from './services/auth-rate-limit.service';
 
 describe('AuthService - Nonce Security', () => {
   let service: AuthService;
@@ -37,6 +38,17 @@ describe('AuthService - Nonce Security', () => {
     emit: jest.fn(),
   };
 
+  const mockAuthRateLimitService = {
+    recordFailedAttempt: jest.fn(),
+    clearFailedAttempts: jest.fn(),
+    applyProgressiveDelay: jest.fn(),
+    shouldBlockRequest: jest.fn().mockResolvedValue({ blocked: false }),
+    getProgressiveDelay: jest.fn().mockResolvedValue(0),
+    getFailedAttemptCount: jest.fn().mockResolvedValue(0),
+    isIpBanned: jest.fn().mockResolvedValue(false),
+    isAccountLocked: jest.fn().mockResolvedValue(false),
+  };
+
   // Generate a valid Stellar keypair for testing
   const testKeypair = StellarSdk.Keypair.random();
   const testPublicKey = testKeypair.publicKey();
@@ -62,6 +74,10 @@ describe('AuthService - Nonce Security', () => {
         {
           provide: CACHE_MANAGER,
           useValue: mockCacheManager,
+        },
+        {
+          provide: AuthRateLimitService,
+          useValue: mockAuthRateLimitService,
         },
       ],
     }).compile();
