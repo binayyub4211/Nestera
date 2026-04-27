@@ -2,16 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
+import * as helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import {
   VersioningMiddleware,
   CURRENT_VERSION,
+  DEPRECATED_VERSIONS,
 } from './common/versioning/versioning.middleware';
 import { VersionAnalyticsInterceptor } from './common/versioning/version-analytics.interceptor';
 import { VersionAnalyticsService } from './common/versioning/version-analytics.service';
 import { GracefulShutdownService } from './common/services/graceful-shutdown.service';
+import { createSecurityHeadersMiddleware } from './common/middleware/security-headers.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -24,6 +27,10 @@ async function bootstrap() {
     type: VersioningType.URI,
     defaultVersion: CURRENT_VERSION,
   });
+
+  // Apply security headers middleware
+  app.use(helmet.default());
+  app.use(createSecurityHeadersMiddleware());
 
   // Register header-based version negotiation + deprecation warnings
   const versioningMiddleware = new VersioningMiddleware();
@@ -44,6 +51,7 @@ async function bootstrap() {
 
   // Swagger setup — one document per supported version
   for (const version of ['1', '2']) {
+    const deprecation = DEPRECATED_VERSIONS[version];
     const swaggerConfig = new DocumentBuilder()
       .setTitle(`Nestera API v${version}`)
       .setDescription(
