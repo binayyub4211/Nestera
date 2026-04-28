@@ -72,6 +72,16 @@ export class YieldHandler {
         return;
       }
 
+      const amountAsNumber = Number(payload.amount);
+
+      const subscription = await subRepo.findOne({
+        where: {
+          userId: user.id,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        order: { createdAt: 'DESC' },
+      });
+
       await txRepo.save(
         txRepo.create({
           userId: user.id,
@@ -91,16 +101,6 @@ export class YieldHandler {
           },
         }),
       );
-
-      const amountAsNumber = Number(payload.amount);
-
-      const subscription = await subRepo.findOne({
-        where: {
-          userId: user.id,
-          status: SubscriptionStatus.ACTIVE,
-        },
-        order: { createdAt: 'DESC' },
-      });
 
       if (subscription) {
         // Increment the totalInterestEarned natively in the database to ensure absolute precision

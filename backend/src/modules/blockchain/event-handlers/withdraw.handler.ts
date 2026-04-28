@@ -71,6 +71,16 @@ export class WithdrawHandler {
         return;
       }
 
+      const amountAsNumber = Number(payload.amount);
+
+      const subscription = await subRepo.findOne({
+        where: {
+          userId: user.id,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        order: { createdAt: 'DESC' },
+      });
+
       await txRepo.save(
         txRepo.create({
           userId: user.id,
@@ -90,16 +100,6 @@ export class WithdrawHandler {
           },
         }),
       );
-
-      const amountAsNumber = Number(payload.amount);
-
-      const subscription = await subRepo.findOne({
-        where: {
-          userId: user.id,
-          status: SubscriptionStatus.ACTIVE,
-        },
-        order: { createdAt: 'DESC' },
-      });
 
       if (!subscription) {
         throw new Error(
