@@ -44,6 +44,7 @@ export interface ProposalAttachment {
 }
 
 export interface ProposalActionPayload {
+  [key: string]: string | number | undefined;
   target?: string;
   newValue?: number;
   duration?: number;

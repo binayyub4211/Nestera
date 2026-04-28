@@ -9,6 +9,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GovernanceService } from './governance.service';
 import {
   GovernanceProposal,
+  ProposalType,
   ProposalStatus,
 } from './entities/governance-proposal.entity';
 import { Vote } from './entities/vote.entity';
@@ -61,6 +62,8 @@ describe('GovernanceService – lifecycle & delegation', () => {
     requiredQuorum: '0',
     quorumBps: 5000,
     proposalThreshold: '100',
+    type: ProposalType.RATE_CHANGE,
+    action: { target: 'savings_rate', newValue: 0.12, duration: 30 },
     ...overrides,
   });
 
@@ -163,6 +166,9 @@ describe('GovernanceService – lifecycle & delegation', () => {
         status: ProposalStatus.QUEUED,
         timelockEndsAt: past,
       });
+      jest
+        .spyOn(service as any, 'executeProposalOnChain')
+        .mockResolvedValue({ hash: '0xabc123', status: 'SUCCESS' });
       proposalRepo.findOneBy.mockResolvedValue(proposal);
       proposalRepo.save.mockResolvedValue({
         ...proposal,

@@ -25,6 +25,7 @@ describe('GovernanceService', () => {
   let stellarService: {
     getDelegationForUser: jest.Mock;
     getRpcServer: jest.Mock;
+    invokeContractWrite: jest.Mock;
   };
   let savingsService: { getUserVaultBalance: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
@@ -63,6 +64,7 @@ describe('GovernanceService', () => {
       getRpcServer: jest.fn().mockReturnValue({
         getLatestLedger: jest.fn().mockResolvedValue({ sequence: 1000 }),
       }),
+      invokeContractWrite: jest.fn(),
     };
     savingsService = { getUserVaultBalance: jest.fn() };
     eventEmitter = { emit: jest.fn() };
@@ -448,6 +450,118 @@ describe('GovernanceService', () => {
     });
   });
 
+  describe('executeProposal', () => {
+    const OLD_ENV = process.env;
+
+    beforeEach(() => {
+      process.env = {
+        ...OLD_ENV,
+        GOVERNANCE_EXECUTOR_SECRET_KEY: 'S_TEST_EXECUTOR_SECRET',
+        GOVERNANCE_EXECUTION_CONTRACT_ID: 'C_EXECUTION',
+        GOVERNANCE_TREASURY_CONTRACT_ID: 'C_TREASURY',
+      };
+    });
+
+    afterEach(() => {
+      process.env = OLD_ENV;
+    });
+
+    it('executes queued rate-change proposal on-chain and marks executed', async () => {
+      const proposal = {
+        id: 'proposal-1',
+        onChainId: 9,
+        title: 'Rate update',
+        description: 'Raise flexi rate',
+        category: ProposalCategory.TECHNICAL,
+        type: ProposalType.RATE_CHANGE,
+        action: { target: 'flexiRate', newValue: 12 },
+        attachments: [],
+        status: ProposalStatus.QUEUED,
+        timelockEndsAt: new Date(Date.now() - 60_000),
+        proposer: 'GPROPOSER',
+        createdByUserId: 'user-1',
+        startBlock: 900,
+        endBlock: 1000,
+        requiredQuorum: '1000.00000000',
+        quorumBps: 5000,
+        proposalThreshold: '100.00000000',
+        executedAt: null,
+        createdAt: new Date('2026-03-30T12:00:00.000Z'),
+        updatedAt: new Date('2026-03-30T12:00:00.000Z'),
+      };
+      proposalRepo.findOneBy.mockResolvedValue(proposal);
+      stellarService.invokeContractWrite.mockResolvedValue({
+        hash: 'tx-hash',
+        status: 'SUCCESS',
+      });
+      proposalRepo.save.mockImplementation(async (input) => input);
+
+      const result = await service.executeProposal('proposal-1', 'admin-1');
+
+      expect(stellarService.invokeContractWrite).toHaveBeenCalledWith(
+        'C_EXECUTION',
+        'set_rate',
+        'S_TEST_EXECUTOR_SECRET',
+        ['flexiRate', 12],
+      );
+      expect(proposalRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ProposalStatus.EXECUTED,
+          executedAt: expect.any(Date),
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'governance.proposal.executed',
+        expect.objectContaining({
+          proposalId: 'proposal-1',
+          transactionHash: 'tx-hash',
+          transactionStatus: 'SUCCESS',
+        }),
+      );
+      expect(result.status).toBe(ProposalStatus.EXECUTED);
+    });
+
+    it('keeps proposal queued and raises when on-chain execution fails', async () => {
+      const proposal = {
+        id: 'proposal-2',
+        onChainId: 10,
+        title: 'Pause protocol',
+        description: 'Emergency pause',
+        category: ProposalCategory.GOVERNANCE,
+        type: ProposalType.PAUSE,
+        action: { reason: 'incident' },
+        attachments: [],
+        status: ProposalStatus.QUEUED,
+        timelockEndsAt: new Date(Date.now() - 60_000),
+        proposer: 'GPROPOSER',
+        createdByUserId: 'user-1',
+        startBlock: 900,
+        endBlock: 1000,
+        requiredQuorum: '1000.00000000',
+        quorumBps: 5000,
+        proposalThreshold: '100.00000000',
+        executedAt: null,
+        createdAt: new Date('2026-03-30T12:00:00.000Z'),
+        updatedAt: new Date('2026-03-30T12:00:00.000Z'),
+      };
+      proposalRepo.findOneBy.mockResolvedValue(proposal);
+      stellarService.invokeContractWrite.mockRejectedValue(
+        new Error('tx failed'),
+      );
+
+      await expect(
+        service.executeProposal('proposal-2', 'admin-1'),
+      ).rejects.toThrow('Failed to execute proposal on-chain');
+      expect(proposalRepo.save).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'governance.proposal.execution_failed',
+        expect.objectContaining({
+          proposalId: 'proposal-2',
+          reason: 'tx failed',
+        }),
+      );
+    });
+  });
   describe('delegate (loop detection)', () => {
     it('rejects delegation to self', async () => {
       userService.findById.mockResolvedValue({

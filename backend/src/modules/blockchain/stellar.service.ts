@@ -4,6 +4,7 @@ import {
   Account,
   Address,
   Asset,
+  BASE_FEE,
   Contract,
   Horizon,
   Keypair,
@@ -202,6 +203,70 @@ export class StellarService implements OnModuleInit {
     }
   }
 
+  async invokeContractWrite(
+    contractId: string,
+    functionName: string,
+    secretKey: string,
+    args: any[] = [],
+  ): Promise<{ hash: string; status: string }> {
+    try {
+      return await this.rpcClient.executeWithRetry(async (client) => {
+        const rpcServer = client as rpc.Server;
+        const sourceKeypair = Keypair.fromSecret(secretKey);
+        const sourceAccount = await rpcServer.getAccount(
+          sourceKeypair.publicKey(),
+        );
+        const contract = new Contract(contractId);
+
+        let transaction = new TransactionBuilder(sourceAccount, {
+          fee: BASE_FEE,
+          networkPassphrase: this.getNetworkPassphrase(),
+        })
+          .addOperation(
+            contract.call(
+              functionName,
+              ...args.map((arg) => nativeToScVal(arg as never)),
+            ),
+          )
+          .setTimeout(30)
+          .build();
+
+        const simulation = await rpcServer.simulateTransaction(transaction);
+        if (rpc.Api.isSimulationError(simulation)) {
+          throw new Error(`Soroban simulation failed: ${simulation.error}`);
+        }
+
+        transaction = rpc.assembleTransaction(transaction, simulation).build();
+        transaction.sign(sourceKeypair);
+
+        const sendResponse = await rpcServer.sendTransaction(transaction);
+        if (
+          'errorResult' in sendResponse &&
+          sendResponse.errorResult !== undefined &&
+          sendResponse.errorResult !== null
+        ) {
+          throw new Error(
+            `Soroban submission failed: ${sendResponse.errorResult ?? sendResponse.status}`,
+          );
+        }
+
+        const hash = sendResponse.hash;
+        const finalizedStatus = await this.waitForTransactionResult(
+          rpcServer,
+          hash,
+        );
+
+        return { hash, status: finalizedStatus };
+      }, 'rpc');
+    } catch (error) {
+      this.logger.error(
+        `Failed to invoke contract write ${contractId}.${functionName}: ${(error as Error).message}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
   async getDelegationForUser(publicKey: string): Promise<string | null> {
     const contractId = this.configService.get<string>('stellar.contractId');
     if (!contractId || !publicKey) {
@@ -394,5 +459,33 @@ export class StellarService implements OnModuleInit {
       'code' in error &&
       error.code === 404
     );
+  }
+
+  private async waitForTransactionResult(
+    rpcServer: rpc.Server,
+    hash: string,
+  ): Promise<string> {
+    const maxAttempts = 20;
+    const delayMs = 1500;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const txResult = await rpcServer.getTransaction(hash);
+      const status = txResult.status;
+
+      if (status === rpc.Api.GetTransactionStatus.SUCCESS) {
+        return status;
+      }
+
+      if (
+        status === rpc.Api.GetTransactionStatus.FAILED ||
+        status === rpc.Api.GetTransactionStatus.NOT_FOUND
+      ) {
+        throw new Error(`Transaction ${hash} ended with status ${status}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error(`Transaction ${hash} confirmation timed out`);
   }
 }
