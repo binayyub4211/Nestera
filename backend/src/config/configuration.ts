@@ -9,6 +9,23 @@ export default () => ({
     name: process.env.DB_NAME,
     user: process.env.DB_USER,
     pass: process.env.DB_PASS,
+    // Optional read replicas for SELECT routing (host[:port], comma-separated).
+    // Only applied in host-based mode; for DATABASE_URL setups, configure
+    // replica routing at the platform layer (PgBouncer, RDS Proxy, etc).
+    replicaHosts: process.env.DB_READ_HOSTS,
+    pool: {
+      max: parseInt(process.env.DB_POOL_MAX || '', 10) || undefined,
+      min: parseInt(process.env.DB_POOL_MIN || '', 10) || undefined,
+      idleTimeoutMs:
+        parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS || '', 10) || undefined,
+      connectionTimeoutMs:
+        parseInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS || '', 10) ||
+        undefined,
+      statementTimeoutMs:
+        parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '', 10) || undefined,
+      queryTimeoutMs:
+        parseInt(process.env.DB_QUERY_TIMEOUT_MS || '', 10) || undefined,
+    },
   },
   jwt: {
     secret: process.env.JWT_SECRET,
