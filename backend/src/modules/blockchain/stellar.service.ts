@@ -246,7 +246,7 @@ export class StellarService implements OnModuleInit {
           sendResponse.errorResult !== null
         ) {
           throw new Error(
-            `Soroban submission failed: ${sendResponse.errorResult ?? sendResponse.status}`,
+            `Soroban submission failed: ${String(sendResponse.errorResult ?? sendResponse.status)}`,
           );
         }
 
@@ -461,7 +461,17 @@ export class StellarService implements OnModuleInit {
     );
   }
 
-  private async waitForTransactionResult(
+  /**
+   * Generic method to wait for a transaction result by its hash
+   */
+  async waitForTransaction(hash: string): Promise<string> {
+    return await this.rpcClient.executeWithRetry(async (client) => {
+      const rpcServer = client as rpc.Server;
+      return await this.waitForTransactionResult(rpcServer, hash);
+    }, 'rpc');
+  }
+
+  public async waitForTransactionResult(
     rpcServer: rpc.Server,
     hash: string,
   ): Promise<string> {
@@ -476,11 +486,15 @@ export class StellarService implements OnModuleInit {
         return status;
       }
 
-      if (
-        status === rpc.Api.GetTransactionStatus.FAILED ||
-        status === rpc.Api.GetTransactionStatus.NOT_FOUND
-      ) {
-        throw new Error(`Transaction ${hash} ended with status ${status}`);
+      if (status === rpc.Api.GetTransactionStatus.FAILED) {
+        throw new Error(
+          `Transaction ${hash} ended with status ${String(status)}`,
+        );
+      }
+
+      if (status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
       }
 
       await new Promise((resolve) => setTimeout(resolve, delayMs));
