@@ -16,6 +16,7 @@ import {
   WatchWalletChanges,
 } from "@stellar/freighter-api";
 import { Horizon } from "@stellar/stellar-sdk";
+import { trackEvent, AnalyticsEvents } from "../../lib/analytics";
 
 /** Matches the CallbackParams shape from @stellar/freighter-api's WatchWalletChanges. */
 interface WalletChangeEvent {
@@ -238,8 +239,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     setState((s) => ({ ...s, isLoading: true, error: null }));
     try {
+      trackEvent(AnalyticsEvents.WALLET_CONNECT_ATTEMPT);
       const accessResult = await requestAccess();
       if (accessResult?.error) {
+        trackEvent(AnalyticsEvents.WALLET_CONNECT_FAILURE, { error: accessResult.error });
         setState((s) => ({
           ...s,
           isLoading: false,
@@ -260,11 +263,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         error: null,
         balanceError: null,
       }));
+      trackEvent(AnalyticsEvents.WALLET_CONNECT_SUCCESS, { address: addrResult?.address });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to connect wallet";
+      trackEvent(AnalyticsEvents.WALLET_CONNECT_FAILURE, { error: errorMessage });
       setState((s) => ({
         ...s,
         isLoading: false,
-        error: err instanceof Error ? err.message : "Failed to connect wallet",
+        error: errorMessage,
       }));
     }
   }, []);
@@ -283,6 +289,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isBalancesLoading: false,
       lastBalanceSync: null,
     }));
+    trackEvent(AnalyticsEvents.WALLET_DISCONNECT);
   }, []);
 
   return (
