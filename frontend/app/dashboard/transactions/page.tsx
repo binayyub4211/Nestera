@@ -1,60 +1,15 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Download, History, Loader2, Search, ChevronDown, Inbox } from "lucide-react";
+import { Download, History, Loader2, ChevronDown, Inbox } from "lucide-react";
 import TransactionRow, { TransactionType, TransactionStatus } from "./components/TransactionRow";
 import { useToast } from "../../context/ToastContext";
-
-type TransactionRowData = {
-  date: string;
-  time: string;
-  transactionId: string;
-  type: TransactionType;
-  assetDetails: string;
-  amountDisplay: string;
-  isPositive: boolean | null;
-  status: TransactionStatus;
-  hash: string;
-};
-
-function csvEscape(value: string) {
-  const needsQuotes = /[",\n]/.test(value);
-  const escaped = value.replaceAll('"', '""');
-  return needsQuotes ? `"${escaped}"` : escaped;
-}
-
-function toCsv(rows: TransactionRowData[]) {
-  const header = ["date", "time", "transactionId", "type", "assetDetails", "amountDisplay", "status", "hash"];
-  const lines = [
-    header.join(","),
-    ...rows.map((r) =>
-      [r.date, r.time, r.transactionId, r.type, r.assetDetails, r.amountDisplay, r.status, r.hash]
-        .map(csvEscape)
-        .join(","),
-    ),
-  ];
-  return `${lines.join("\n")}\n`;
-}
-
-function downloadTextFile(
-  filename: string,
-  text: string,
-  mime = "text/csv;charset=utf-8",
-) {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+import { useSearchFilter } from "../../hooks/useSearchFilter";
+import SearchFilterSystem from "../../components/ui/SearchFilterSystem";
+import { toCsv, downloadTextFile } from "../../utils/csvExport";
 
 export default function TransactionHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const toast = useToast();
 
   useEffect(() => {
@@ -109,37 +64,32 @@ export default function TransactionHistoryPage() {
     },
   ];
 
+  const {
+    query,
+    setQuery,
+    ranges,
+    setRanges,
+    history,
+    addToHistory,
+    presets,
+    savePreset,
+    applyPreset,
+    clearFilters,
+    filteredItems: filteredTransactions,
+  } = useSearchFilter(transactions, {
+    includeFields: ["date", "transactionId", "type", "assetDetails", "amountDisplay", "status", "hash"],
+  });
+
+  const hasTransactions = filteredTransactions.length > 0;
+
   function onExportCsv() {
-    const csv = toCsv(transactions);
+    const csv = toCsv(filteredTransactions, ["date", "time", "transactionId", "type", "assetDetails", "amountDisplay", "status", "hash"]);
     downloadTextFile(
       `nestera-transactions-${new Date().toISOString().slice(0, 10)}.csv`,
       csv,
     );
     toast.success("Transactions exported", "CSV file downloaded successfully.");
   }
-
-  const filteredTransactions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return transactions;
-
-    return transactions.filter((transaction) =>
-      [
-        transaction.date,
-        transaction.time,
-        transaction.transactionId,
-        transaction.type,
-        transaction.assetDetails,
-        transaction.amountDisplay,
-        transaction.status,
-        transaction.hash,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-    );
-  }, [searchQuery, transactions]);
-
-  const hasTransactions = filteredTransactions.length > 0;
 
   return (
     <div className="w-full max-w-7xl mx-auto pb-20">
@@ -167,32 +117,19 @@ export default function TransactionHistoryPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        <div className="relative min-w-0 flex-1">
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5e8c96]"
-            size={18}
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by transaction, token, or hash..."
-            className="w-full bg-[#0e2330] border border-white/5 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-[#4e7a86] focus:outline-hidden focus:border-cyan-500/50 transition-colors"
-          />
-        </div>
-
-        {["Type: All", "Asset: All", "Status: All"].map((filter) => (
-          <button
-            type="button"
-            key={filter}
-            className="flex min-h-11 items-center gap-2 rounded-xl border border-white/5 bg-[#0e2330] px-4 py-3 text-[#5e8c96] transition-all hover:border-white/10 hover:text-white"
-          >
-            <span className="text-sm font-medium">{filter}</span>
-            <ChevronDown size={14} opacity={0.7} />
-          </button>
-        ))}
-      </div>
+      <SearchFilterSystem
+        query={query}
+        setQuery={setQuery}
+        ranges={ranges}
+        setRanges={setRanges}
+        history={history}
+        addToHistory={addToHistory}
+        presets={presets}
+        savePreset={savePreset}
+        applyPreset={applyPreset}
+        clearFilters={clearFilters}
+        placeholder="Search transactions (e.g. deposit AND USDC)..."
+      />
 
       <div className="rounded-2xl border border-white/5 bg-[#0e2330]">
         {isLoading ? (
@@ -239,17 +176,17 @@ export default function TransactionHistoryPage() {
               <Inbox size={30} />
             </div>
             <h3 className="text-xl font-semibold text-[#dff]">
-              {searchQuery.trim() ? "No matching transactions" : "No transactions yet"}
+              {query.trim() ? "No matching transactions" : "No transactions yet"}
             </h3>
             <p className="mt-2 max-w-lg text-sm text-[#90b4b4]">
-              {searchQuery.trim()
+              {query.trim()
                 ? "Try a different token, transaction type, or hash to narrow your search."
                 : "Once deposits, withdrawals, swaps, or rewards are recorded, they will appear here."}
             </p>
-            {searchQuery.trim() ? (
+            {query.trim() ? (
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
+                onClick={clearFilters}
                 className="mt-6 rounded-xl bg-cyan-500 px-6 py-2.5 font-semibold text-[#061a1a] hover:bg-cyan-400"
               >
                 Clear search
