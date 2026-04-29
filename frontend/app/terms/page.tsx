@@ -3,9 +3,16 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Nestera",
-  description:
-    "Terms of Service for Nestera - Decentralized Savings on Stellar",
+  title: "Terms of Service",
+  description: "Read the Terms of Service for Nestera's decentralized savings platform built on the Stellar blockchain.",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "Terms of Service - Nestera",
+    description: "Read the Terms of Service for Nestera's decentralized savings platform built on the Stellar blockchain.",
+    images: ["/api/og?page=home"],
+  },
 };
 
 export default function TermsPage() {

@@ -3,8 +3,16 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Nestera",
-  description: "Privacy Policy for Nestera - Decentralized Savings on Stellar",
+  title: "Privacy Policy",
+  description: "Learn how Nestera collects, uses, and protects your data on our decentralized savings platform.",
+  alternates: {
+    canonical: "/privacy",
+  },
+  openGraph: {
+    title: "Privacy Policy - Nestera",
+    description: "Learn how Nestera collects, uses, and protects your data on our decentralized savings platform.",
+    images: ["/api/og?page=home"],
+  },
 };
 
 export default function PrivacyPage() {
