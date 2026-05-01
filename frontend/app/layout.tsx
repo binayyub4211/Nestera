@@ -7,6 +7,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WalletProvider } from "./context/WalletContext";
 import { ToastProvider } from "./context/ToastContext";
+import { QueryProvider } from "./providers/QueryProvider";
 
 import { env } from "./config/env";
 
@@ -58,6 +59,15 @@ export default async function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to content
         </a>
+        <ThemeProvider>
+          <QueryProvider>
+            <WalletProvider>
+              <ToastProvider>
+                <main id="main-content">{children}</main>
+              </ToastProvider>
+            </WalletProvider>
+          </QueryProvider>
+        </ThemeProvider>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AppProviders>
             <ThemeProvider>
